@@ -39,7 +39,7 @@
   "dependencies": {
     "@noble/ed25519": "^2.2.3",
     "@noble/hashes": "^1.8.0",
-    "@waku/sdk": "0.0.37-339e26e.0",
+    "@waku/sdk": "0.0.37-3e3c511.0",
     "clsx": "^2.1.1",
     "tailwind-merge": "^2.5.2",
     "uuid": "^11.1.0",
