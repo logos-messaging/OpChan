@@ -1,5 +1,5 @@
 export const DB_NAME = 'opchan-local';
-export const DB_VERSION = 5;
+export const DB_VERSION = 6;
 
 export const STORE = {
   CELLS: 'cells',
@@ -13,6 +13,7 @@ export const STORE = {
   UI_STATE: 'uiState',
   META: 'meta',
   BOOKMARKS: 'bookmarks',
+  FOLLOWING: 'following',
 } as const;
 
 export type StoreName = (typeof STORE)[keyof typeof STORE];
@@ -83,6 +84,13 @@ export function openLocalDB(): Promise<IDBDatabase> {
         store.createIndex('by_type', 'type', { unique: false });
         // Index to fetch bookmarks by targetId
         store.createIndex('by_targetId', 'targetId', { unique: false });
+      }
+      if (!db.objectStoreNames.contains(STORE.FOLLOWING)) {
+        const store = db.createObjectStore(STORE.FOLLOWING, { keyPath: 'id' });
+        // Index to fetch following by user
+        store.createIndex('by_userId', 'userId', { unique: false });
+        // Index to fetch following by followed address
+        store.createIndex('by_followedAddress', 'followedAddress', { unique: false });
       }
     };
   });

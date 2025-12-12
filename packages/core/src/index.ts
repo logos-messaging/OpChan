@@ -28,6 +28,7 @@ export * from './lib/forum/transformers';
 
 // Export services
 export { BookmarkService } from './lib/services/BookmarkService';
+export { FollowingService } from './lib/services/FollowingService';
 export { MessageService } from './lib/services/MessageService';
 export { UserIdentityService, type UserIdentity } from './lib/services/UserIdentityService';
 

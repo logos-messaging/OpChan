@@ -10,6 +10,7 @@ import Dashboard from './pages/Dashboard';
 import Index from './pages/Index';
 import ProfilePage from './pages/ProfilePage';
 import BookmarksPage from './pages/BookmarksPage';
+import FollowingPage from './pages/FollowingPage';
 import DebugPage from './pages/DebugPage';
 import TermsPage from './pages/TermsPage';
 import PrivacyPage from './pages/PrivacyPage';
@@ -30,6 +31,7 @@ const App = () => (
           <Route path="/post/:postId" element={<PostPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/bookmarks" element={<BookmarksPage />} />
+          <Route path="/following" element={<FollowingPage />} />
           <Route path="/debug" element={<DebugPage />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />

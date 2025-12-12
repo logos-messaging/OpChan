@@ -44,6 +44,7 @@ const PostDetail = () => {
     b => b.targetId === post?.id && b.type === 'post'
   );
   const [bookmarkLoading, setBookmarkLoading] = React.useState(false);
+  const [followLoading, setFollowLoading] = React.useState(false);
 
   const [newComment, setNewComment] = useState('');
 
@@ -118,6 +119,22 @@ const PostDetail = () => {
       setBookmarkLoading(false);
     }
   };
+
+  const handleFollow = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setFollowLoading(true);
+    try {
+      await content.toggleFollow(post.author);
+    } finally {
+      setFollowLoading(false);
+    }
+  };
+
+  const isOwnPost = currentUser?.address === post.author;
+  const isFollowingAuthor = content.isFollowing(post.author);
 
   const score = post.upvotes.length - post.downvotes.length;
   const isPostUpvoted = Boolean(
@@ -248,6 +265,15 @@ const PostDetail = () => {
                   url={`${window.location.origin}/post/${post.id}`}
                   title={post.title}
                 />
+                {currentUser && !isOwnPost && (
+                  <button
+                    onClick={handleFollow}
+                    disabled={followLoading}
+                    className={`hover:underline ${isFollowingAuthor ? 'text-red-400' : ''}`}
+                  >
+                    {isFollowingAuthor ? 'unfollow' : 'follow'}
+                  </button>
+                )}
               </div>
             </div>
           </div>

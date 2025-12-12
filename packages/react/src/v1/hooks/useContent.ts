@@ -10,7 +10,7 @@ import {
   BookmarkType,
   getDataFromCache,
 } from '@opchan/core';
-import { BookmarkService } from '@opchan/core';
+import { BookmarkService, FollowingService } from '@opchan/core';
 
 function reflectCache(client: ReturnType<typeof useClient>): void {
   getDataFromCache().then(({ cells, posts, comments }: { cells: Cell[]; posts: Post[]; comments: Comment[] }) => {
@@ -22,6 +22,7 @@ function reflectCache(client: ReturnType<typeof useClient>): void {
         posts,
         comments,
         bookmarks: Object.values(client.database.cache.bookmarks),
+        following: Object.values(client.database.cache.following),
         lastSync: client.database.getSyncState().lastSync,
         pendingIds: prev.content.pendingIds,
         pendingVotes: prev.content.pendingVotes,
@@ -32,6 +33,87 @@ function reflectCache(client: ReturnType<typeof useClient>): void {
   });
 }
 
+/**
+ * Hook for accessing and managing forum content including cells, posts, comments,
+ * bookmarks, and following relationships.
+ *
+ * ## Following Feature
+ *
+ * The hook provides methods to follow/unfollow users and filter posts by followed users.
+ * Following data is stored locally in IndexedDB and persists across sessions.
+ *
+ * ### Data
+ * - `following`: Array of `Following` objects containing `{ id, userId, followedAddress, followedAt }`
+ *
+ * ### Methods
+ * - `toggleFollow(address)`: Toggle follow status, returns `true` if now following
+ * - `followUser(address)`: Follow a user
+ * - `unfollowUser(address)`: Unfollow a user
+ * - `isFollowing(address)`: Synchronously check if following a user
+ * - `getFollowingPosts()`: Get posts from all followed users
+ * - `clearAllFollowing()`: Unfollow all users
+ *
+ * ### Example: Follow Button
+ * ```tsx
+ * function FollowButton({ authorAddress }: { authorAddress: string }) {
+ *   const { currentUser } = useAuth();
+ *   const { isFollowing, toggleFollow } = useContent();
+ *   const [loading, setLoading] = useState(false);
+ *
+ *   // Don't show for own address or when not logged in
+ *   if (!currentUser || currentUser.address === authorAddress) return null;
+ *
+ *   const handleClick = async () => {
+ *     setLoading(true);
+ *     await toggleFollow(authorAddress);
+ *     setLoading(false);
+ *   };
+ *
+ *   return (
+ *     <button onClick={handleClick} disabled={loading}>
+ *       {isFollowing(authorAddress) ? 'Unfollow' : 'Follow'}
+ *     </button>
+ *   );
+ * }
+ * ```
+ *
+ * ### Example: Following Feed
+ * ```tsx
+ * function FollowingFeed() {
+ *   const { following, posts } = useContent();
+ *
+ *   const followedAddresses = following.map(f => f.followedAddress);
+ *   const followingPosts = posts.filter(p => followedAddresses.includes(p.authorAddress));
+ *
+ *   return (
+ *     <div>
+ *       <h2>Posts from people you follow ({following.length})</h2>
+ *       {followingPosts.map(post => <PostCard key={post.id} post={post} />)}
+ *     </div>
+ *   );
+ * }
+ * ```
+ *
+ * ### Example: Following List
+ * ```tsx
+ * function FollowingList() {
+ *   const { following, unfollowUser } = useContent();
+ *
+ *   return (
+ *     <ul>
+ *       {following.map(f => (
+ *         <li key={f.id}>
+ *           {f.followedAddress}
+ *           <button onClick={() => unfollowUser(f.followedAddress)}>
+ *             Unfollow
+ *           </button>
+ *         </li>
+ *       ))}
+ *     </ul>
+ *   );
+ * }
+ * ```
+ */
 export function useContent() {
   const client = useClient();
   const content = useOpchanStore(s => s.content);
@@ -273,6 +355,118 @@ export function useContent() {
     setOpchanState(prev => ({ ...prev, content: { ...prev.content, bookmarks: updated } }));
   }, [client, session.currentUser?.address]);
 
+  // ============================================================================
+  // FOLLOWING METHODS
+  // ============================================================================
+  // The following feature allows users to follow other users and see their posts
+  // in a personalized feed. Following data is stored locally in IndexedDB.
+  //
+  // Data:
+  //   - `following`: Array of Following objects for the current user
+  //
+  // Methods:
+  //   - `toggleFollow(address)`: Toggle follow status, returns true if now following
+  //   - `followUser(address)`: Follow a user
+  //   - `unfollowUser(address)`: Unfollow a user
+  //   - `isFollowing(address)`: Check if following (synchronous)
+  //   - `getFollowingPosts()`: Get posts from followed users
+  //   - `clearAllFollowing()`: Unfollow all users
+  //
+  // Example usage:
+  // ```tsx
+  // function FollowButton({ authorAddress }: { authorAddress: string }) {
+  //   const { isFollowing, toggleFollow } = useContent();
+  //   const [loading, setLoading] = useState(false);
+  //
+  //   const handleClick = async () => {
+  //     setLoading(true);
+  //     await toggleFollow(authorAddress);
+  //     setLoading(false);
+  //   };
+  //
+  //   return (
+  //     <button onClick={handleClick} disabled={loading}>
+  //       {isFollowing(authorAddress) ? 'Unfollow' : 'Follow'}
+  //     </button>
+  //   );
+  // }
+  // ```
+  // ============================================================================
+
+  /**
+   * Toggle follow status for a user.
+   * @param followedAddress - The address of the user to follow/unfollow
+   * @returns true if now following, false if unfollowed or user not logged in
+   */
+  const toggleFollow = React.useCallback(async (followedAddress: string): Promise<boolean> => {
+    const address = session.currentUser?.address;
+    if (!address) return false;
+    const isNowFollowing = await FollowingService.toggleFollow(address, followedAddress);
+    const updated = await client.database.getUserFollowing(address);
+    setOpchanState(prev => ({ ...prev, content: { ...prev.content, following: updated } }));
+    return isNowFollowing;
+  }, [client, session.currentUser?.address]);
+
+  /**
+   * Follow a user.
+   * @param followedAddress - The address of the user to follow
+   * @returns true if successful, false if user not logged in
+   */
+  const followUser = React.useCallback(async (followedAddress: string): Promise<boolean> => {
+    const address = session.currentUser?.address;
+    if (!address) return false;
+    await FollowingService.followUser(address, followedAddress);
+    const updated = await client.database.getUserFollowing(address);
+    setOpchanState(prev => ({ ...prev, content: { ...prev.content, following: updated } }));
+    return true;
+  }, [client, session.currentUser?.address]);
+
+  /**
+   * Unfollow a user.
+   * @param followedAddress - The address of the user to unfollow
+   * @returns true if successful, false if user not logged in
+   */
+  const unfollowUser = React.useCallback(async (followedAddress: string): Promise<boolean> => {
+    const address = session.currentUser?.address;
+    if (!address) return false;
+    await FollowingService.unfollowUser(address, followedAddress);
+    const updated = await client.database.getUserFollowing(address);
+    setOpchanState(prev => ({ ...prev, content: { ...prev.content, following: updated } }));
+    return true;
+  }, [client, session.currentUser?.address]);
+
+  /**
+   * Check if the current user is following another user (synchronous).
+   * @param followedAddress - The address to check
+   * @returns true if following, false otherwise
+   */
+  const isFollowing = React.useCallback((followedAddress: string): boolean => {
+    const address = session.currentUser?.address;
+    if (!address) return false;
+    return FollowingService.isFollowing(address, followedAddress);
+  }, [session.currentUser?.address]);
+
+  /**
+   * Get all posts from users that the current user follows.
+   * @returns Array of posts from followed users
+   */
+  const getFollowingPosts = React.useCallback(async (): Promise<Post[]> => {
+    const address = session.currentUser?.address;
+    if (!address) return [];
+    return FollowingService.getFollowingPosts(address);
+  }, [session.currentUser?.address]);
+
+  /**
+   * Unfollow all users. Useful for account cleanup.
+   */
+  const clearAllFollowing = React.useCallback(async (): Promise<void> => {
+    const address = session.currentUser?.address;
+    if (!address) return;
+    await FollowingService.clearUserFollowing(address);
+    const updated = await client.database.getUserFollowing(address);
+    setOpchanState(prev => ({ ...prev, content: { ...prev.content, following: updated } }));
+  }, [client, session.currentUser?.address]);
+
   const refresh = React.useCallback(async () => {
     // Minimal refresh: re-reflect cache; network refresh is via useNetwork
     reflectCache(client);
@@ -284,6 +478,7 @@ export function useContent() {
     posts: content.posts,
     comments: content.comments,
     bookmarks: content.bookmarks,
+    following: content.following,
     postsByCell,
     commentsByPost,
     cellsWithStats,
@@ -303,6 +498,12 @@ export function useContent() {
     toggleCommentBookmark,
     removeBookmark,
     clearAllBookmarks,
+    toggleFollow,
+    followUser,
+    unfollowUser,
+    isFollowing,
+    getFollowingPosts,
+    clearAllFollowing,
     refresh,
   } as const;
 }

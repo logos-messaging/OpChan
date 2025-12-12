@@ -17,7 +17,7 @@ import { MessageValidator } from '../utils/MessageValidator';
 import { EDisplayPreference, EVerificationStatus, User } from '../../types/identity';
 import { DelegationInfo } from '../delegation/types';
 import { openLocalDB, STORE, StoreName } from '../database/schema';
-import { Bookmark, BookmarkCache } from '../../types/forum';
+import { Bookmark, BookmarkCache, Following, FollowingCache } from '../../types/forum';
 
 export interface LocalDatabaseCache {
   cells: CellCache;
@@ -31,6 +31,7 @@ export interface LocalDatabaseCache {
   moderations: { [key: string]: (ModerateMessage & { key?: string }) };
   userIdentities: UserIdentityCache;
   bookmarks: BookmarkCache;
+  following: FollowingCache;
 }
 
 /**
@@ -54,6 +55,7 @@ export class LocalDatabase {
     moderations: {},
     userIdentities: {},
     bookmarks: {},
+    following: {},
   };
 
   constructor() {
@@ -134,6 +136,7 @@ export class LocalDatabase {
     this.cache.moderations = {};
     this.cache.userIdentities = {};
     this.cache.bookmarks = {};
+    this.cache.following = {};
   }
 
   /**
@@ -158,6 +161,7 @@ export class LocalDatabase {
       STORE.UI_STATE,
       STORE.META,
       STORE.BOOKMARKS,
+      STORE.FOLLOWING,
     ];
 
     const tx = this.db.transaction(storeNames, 'readwrite');
@@ -273,7 +277,7 @@ export class LocalDatabase {
   private async hydrateFromIndexedDB(): Promise<void> {
     if (!this.db) return;
 
-    const [cells, posts, comments, votes, moderations, identities, bookmarks]: [
+    const [cells, posts, comments, votes, moderations, identities, bookmarks, following]: [
       CellMessage[],
       PostMessage[],
       CommentMessage[],
@@ -281,6 +285,7 @@ export class LocalDatabase {
       (ModerateMessage & { key: string })[],
       ({ address: string } & UserIdentityCache[string])[],
       Bookmark[],
+      Following[],
     ] = await Promise.all([
       this.getAllFromStore<CellMessage>(STORE.CELLS),
       this.getAllFromStore<PostMessage>(STORE.POSTS),
@@ -291,6 +296,7 @@ export class LocalDatabase {
         STORE.USER_IDENTITIES
       ),
       this.getAllFromStore<Bookmark>(STORE.BOOKMARKS),
+      this.getAllFromStore<Following>(STORE.FOLLOWING),
     ]);
 
     this.cache.cells = Object.fromEntries(cells.map(c => [c.id, c]));
@@ -313,6 +319,7 @@ export class LocalDatabase {
       })
     );
     this.cache.bookmarks = Object.fromEntries(bookmarks.map(b => [b.id, b]));
+    this.cache.following = Object.fromEntries(following.map(f => [f.id, f]));
   }
 
   private async hydratePendingFromMeta(): Promise<void> {
@@ -356,6 +363,7 @@ export class LocalDatabase {
       | { key: string; value: DelegationInfo; timestamp: number }
       | { key: string; value: unknown; timestamp: number }
       | Bookmark
+      | Following
   ): void {
     if (!this.db) return;
     const tx = this.db.transaction(storeName, 'readwrite');
@@ -648,6 +656,84 @@ export class LocalDatabase {
    */
   public getAllBookmarks(): Bookmark[] {
     return Object.values(this.cache.bookmarks);
+  }
+
+  // ===== Following Storage =====
+
+  /**
+   * Add a following relationship
+   */
+  public async addFollowing(following: Following): Promise<void> {
+    this.cache.following[following.id] = following;
+    this.put(STORE.FOLLOWING, following);
+  }
+
+  /**
+   * Remove a following relationship
+   */
+  public async removeFollowing(followingId: string): Promise<void> {
+    delete this.cache.following[followingId];
+    if (!this.db) return;
+
+    const tx = this.db.transaction(STORE.FOLLOWING, 'readwrite');
+    const store = tx.objectStore(STORE.FOLLOWING);
+    store.delete(followingId);
+  }
+
+  /**
+   * Get all accounts a user is following
+   */
+  public async getUserFollowing(userId: string): Promise<Following[]> {
+    if (!this.db) return [];
+
+    return new Promise((resolve, reject) => {
+      const tx = this.db!.transaction(STORE.FOLLOWING, 'readonly');
+      const store = tx.objectStore(STORE.FOLLOWING);
+      const index = store.index('by_userId');
+      const request = index.getAll(userId);
+
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result as Following[]);
+    });
+  }
+
+  /**
+   * Get all users who follow a specific address
+   */
+  public async getFollowers(followedAddress: string): Promise<Following[]> {
+    if (!this.db) return [];
+
+    return new Promise((resolve, reject) => {
+      const tx = this.db!.transaction(STORE.FOLLOWING, 'readonly');
+      const store = tx.objectStore(STORE.FOLLOWING);
+      const index = store.index('by_followedAddress');
+      const request = index.getAll(followedAddress);
+
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result as Following[]);
+    });
+  }
+
+  /**
+   * Check if a user is following another address (sync from cache)
+   */
+  public isFollowing(userId: string, followedAddress: string): boolean {
+    const followingId = `${userId}:${followedAddress}`;
+    return !!this.cache.following[followingId];
+  }
+
+  /**
+   * Get following by ID
+   */
+  public getFollowing(followingId: string): Following | undefined {
+    return this.cache.following[followingId];
+  }
+
+  /**
+   * Get all following from cache
+   */
+  public getAllFollowing(): Following[] {
+    return Object.values(this.cache.following);
   }
 
   /**
