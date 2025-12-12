@@ -33,7 +33,7 @@
     "react-dom": ">=18.0.0"
   },
   "dependencies": {
-    "@opchan/core": "file:../core"
+    "@opchan/core": "^1.0.3"
   },
   "devDependencies": {
     "typescript": "^5.5.3",
