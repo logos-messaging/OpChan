@@ -163,6 +163,13 @@ const Header = () => {
                     >
                       BOOKMARKS
                     </Link>
+                    <span className="text-muted-foreground">|</span>
+                    <Link
+                      to="/following"
+                      className={location.pathname === '/following' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}
+                    >
+                      FOLLOWING
+                    </Link>
                   </>
                 )}
               </nav>
