@@ -4,6 +4,7 @@ import type {
   Post,
   Comment,
   Bookmark,
+  Following,
   User,
   EVerificationStatus,
   DelegationFullStatus,
@@ -23,6 +24,7 @@ export interface ContentSlice {
   posts: Post[];
   comments: Comment[];
   bookmarks: Bookmark[];
+  following: Following[];
   lastSync: number | null;
   pendingIds: Set<string>;
   pendingVotes: Set<string>;
@@ -70,6 +72,7 @@ const defaultState: OpchanState = {
     posts: [],
     comments: [],
     bookmarks: [],
+    following: [],
     lastSync: null,
     pendingIds: new Set<string>(),
     pendingVotes: new Set<string>(),

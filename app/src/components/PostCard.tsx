@@ -14,6 +14,8 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
     pending,
     vote,
     togglePostBookmark,
+    toggleFollow,
+    isFollowing,
     cells,
     commentsByPost,
   } = useContent();
@@ -29,6 +31,10 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
     b => b.targetId === post.id && b.type === 'post'
   );
   const [bookmarkLoading, setBookmarkLoading] = React.useState(false);
+  const [followLoading, setFollowLoading] = React.useState(false);
+
+  const isOwnPost = currentUser?.address === post.author;
+  const isFollowingAuthor = isFollowing(post.author);
 
   const score = post.upvotes.length - post.downvotes.length;
   const userUpvoted = Boolean(
@@ -62,6 +68,19 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
       await togglePostBookmark(post, post.cellId);
     } finally {
       setBookmarkLoading(false);
+    }
+  };
+
+  const handleFollow = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setFollowLoading(true);
+    try {
+      await toggleFollow(post.author);
+    } finally {
+      setFollowLoading(false);
     }
   };
 
@@ -126,6 +145,18 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
             >
               {isBookmarked ? 'unsave' : 'save'}
             </button>
+            {currentUser && !isOwnPost && (
+              <>
+                <span className="text-muted-foreground text-xs">·</span>
+                <button
+                  onClick={handleFollow}
+                  disabled={followLoading}
+                  className={`hover:underline text-xs ${isFollowingAuthor ? 'text-red-400' : 'text-muted-foreground'}`}
+                >
+                  {isFollowingAuthor ? 'unfollow' : 'follow'}
+                </button>
+              </>
+            )}
             {isPending && (
               <>
                 <span className="text-muted-foreground text-xs">·</span>

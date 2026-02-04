@@ -1,4 +1,4 @@
-import { Cell, Post, Comment } from '../../types/forum';
+import { Cell, Post, Comment, Following } from '../../types/forum';
 import {
   CellMessage,
   CommentMessage,
@@ -248,6 +248,21 @@ export const transformVote = async (
   // Message validity already enforced upstream
 
   return voteMessage;
+};
+
+/**
+ * Get posts from users that the specified user is following
+ */
+export const getFollowingPostsFromCache = async (
+  userId: string
+): Promise<Post[]> => {
+  const followingRecords = Object.values(localDatabase.cache.following);
+  const followedAddresses = followingRecords
+    .filter(f => f.userId === userId)
+    .map(f => f.followedAddress);
+
+  const { posts } = await getDataFromCache();
+  return posts.filter(post => followedAddresses.includes(post.authorAddress));
 };
 
 export const getDataFromCache = async (

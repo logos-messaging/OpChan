@@ -157,3 +157,20 @@ export interface Bookmark {
 export interface BookmarkCache {
   [bookmarkId: string]: Bookmark;
 }
+
+/**
+ * Following relationship data structure
+ */
+export interface Following {
+  id: string; // Composite key: `${userId}:${followedAddress}`
+  userId: string; // Follower's address
+  followedAddress: string; // Address being followed
+  followedAt: number; // Timestamp when followed
+}
+
+/**
+ * Following cache for in-memory storage
+ */
+export interface FollowingCache {
+  [followingId: string]: Following;
+}
